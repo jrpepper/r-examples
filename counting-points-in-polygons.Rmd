@@ -1,0 +1,62 @@
+---
+title: "counting-points-in-polygons"
+author: "jrpepper"
+date: "November 16, 2015"
+output: html_document
+---
+
+#header 1
+##Adding in locations of cities in Ontario
+This example shows R code for creating buffers from one set of points (in blue). We also take a separate set of points (in red) and count the number of red points within each blue polygon.
+
+```{r, fig.width=9.5}
+library(leaflet)
+library(maps)
+library(rgeos)
+library(sp)
+
+cities <- canada.cities[canada.cities$country.etc == "ON",]
+coordinates(cities) <- ~long + lat
+
+leaflet(cities) %>% addTiles() %>% addCircleMarkers(radius=4, stroke=2, fillColor = "Red", color="Red")
+```
+
+##Add a point with buffers
+Adding in an example point with a large buffer:
+
+```{r, fig.width=9.5}
+#make an example point
+example_points <- data.frame(lat=numeric(), long= numeric()) 
+example_points[1,] <- c(44.19,-80.14)
+example_points[2,] <- c(43.69,-81.44)
+example_points[3,] <- c(44.981,-81.296)
+
+#add coordinates to make it spatial data
+coordinates(example_points) <- ~long + lat
+
+#add a buffer around the point
+pointsBuffer <- gBuffer(example_points, width=.5, byid = TRUE)
+
+#make leaflet map
+leaflet(cities) %>% addTiles() %>% addCircleMarkers(radius=4, stroke=2, fillColor = "Red", color="Red") %>%
+  addMarkers(data=example_points) %>%
+  addPolygons(data=pointsBuffer)
+```
+
+##Perform spatial analysis:
+Add up the number of cites in the buffer add it back to example point
+```{r, fig.width=9.5}
+#count number of cities in each buffer
+count <- over(pointsBuffer, cities, fn=length)
+pointsBuffer$city_count <- count$name
+
+#make color ramp
+palette <- colorNumeric("YlOrRd", pointsBuffer@data$city_count)
+
+#make leaflet map
+leaflet(cities) %>% addTiles() %>% addCircleMarkers(radius=4, stroke=0, opacity=0.2, fillColor = "Red", color="Red") %>%
+  addPolygons(data=pointsBuffer, color=~palette(city_count),
+              popup=~paste(city_count, "cities in this region.")) %>%
+  addLegend(title = "Number of cities in buffer", pal = palette, values= pointsBuffer@data$city_count, opacity = 0.9, position="bottomleft")
+```
+
